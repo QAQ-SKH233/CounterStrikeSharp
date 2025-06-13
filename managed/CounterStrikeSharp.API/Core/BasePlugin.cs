@@ -307,7 +307,7 @@ namespace CounterStrikeSharp.API.Core
             var elapsedMs = sw.ElapsedMilliseconds;
             
             // 超过5ms时输出警告
-            if (elapsedMs > 5)
+            if (elapsedMs > 0.05)
             {
                 Console.WriteLine(
                     $"[PERFORMANCE WARNING] Listener '{listenerName}' in plugin '{ModuleName}' took {elapsedMs}ms");
