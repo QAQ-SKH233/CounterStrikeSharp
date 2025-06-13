@@ -285,18 +285,35 @@ namespace CounterStrikeSharp.API.Core
             Application.Instance.Logger.LogDebug("Registering listener for {ListenerName} with {ParameterCount} parameters",
                 listenerName, parameterTypes.Length);
 
-            var wrappedHandler = new Action<ScriptContext>(context =>
-            {
-                var args = new object[parameterTypes.Length];
-                for (int i = 0; i < parameterTypes.Length; i++)
-                {
-                    args[i] = context.GetArgument(castedParameterTypes[i] ?? parameterTypes[i], i);
-                    if (castedParameterTypes[i] != null)
-                        args[i] = Activator.CreateInstance(parameterTypes[i], new[] { args[i] });
-                }
+    var wrappedHandler = new Action<ScriptContext>(context =>
+    {
+        var args = new object[parameterTypes.Length];
+        for (int i = 0; i < parameterTypes.Length; i++)
+        {
+            args[i] = context.GetArgument(castedParameterTypes[i] ?? parameterTypes[i], i);
+            if (castedParameterTypes[i] != null)
+                args[i] = Activator.CreateInstance(parameterTypes[i], new[] { args[i] });
+        }
 
-                handler.DynamicInvoke(args);
-            });
+        // 开始计时
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            handler.DynamicInvoke(args);
+        }
+        finally
+        {
+            sw.Stop();
+            var elapsedMs = sw.ElapsedMilliseconds;
+            
+            // 超过5ms时输出警告
+            if (elapsedMs > 5)
+            {
+                Console.WriteLine(
+                    $"[PERFORMANCE WARNING] Listener '{listenerName}' in plugin '{ModuleName}' took {elapsedMs}ms");
+            }
+        }
+    });
 
             var subscriber =
                 new CallbackSubscriber(handler, wrappedHandler, () => { RemoveListener(listenerName, handler); });
