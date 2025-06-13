@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: | 
           echo "GITHUB_SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_ENV
-          echo "SEMVER=${{ needs.setup.outputs.gitversion_semver }}" >> $GITHUB_ENV
+          echo "SEMVER=${{ 1.0.316 }}" >> $GITHUB_ENV
 
       - name: Visual Studio environment
         shell: cmd
@@ -84,7 +84,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: counterstrikesharp-windows-${{ needs.setup.outputs.gitversion_semver }}
+          name: counterstrikesharp-windows-${{ 1.0.316 }}
           path: build/output/
 
   build_linux:
@@ -98,7 +98,7 @@ jobs:
         shell: bash
         run: |
           echo "GITHUB_SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_ENV
-          echo "SEMVER=${{ needs.setup.outputs.gitversion_semver }}" >> $GITHUB_ENV
+          echo "SEMVER=${{ 1.0.316 }}" >> $GITHUB_ENV
 
       - uses: actions/checkout@v4
         with:
@@ -118,7 +118,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: counterstrikesharp-linux-${{ needs.setup.outputs.gitversion_semver }}
+          name: counterstrikesharp-linux-${{ 1.0.316 }}
           path: build/output/
 
   build_managed:
@@ -134,7 +134,7 @@ jobs:
       # We don't need expensive submodules for the managed side.
       - uses: actions/checkout@v4
 
-      - name: Build runtime v${{ needs.setup.outputs.gitversion_semver }}
+      - name: Build runtime v${{ 1.0.316 }}
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
@@ -143,32 +143,32 @@ jobs:
         run: dotnet restore managed/CounterStrikeSharp.sln
 
       - name: Run tests
-        run: dotnet test --logger trx --results-directory "TestResults-${{ needs.setup.outputs.gitversion_semver }}" managed/CounterStrikeSharp.API.Tests/CounterStrikeSharp.API.Tests.csproj
+        run: dotnet test --logger trx --results-directory "TestResults-${{ 1.0.316 }}" managed/CounterStrikeSharp.API.Tests/CounterStrikeSharp.API.Tests.csproj
 
       - name: Upload dotnet test results
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ needs.setup.outputs.gitversion_semver }}
-          path: TestResults-${{ needs.setup.outputs.gitversion_semver }}
+          name: test-results-${{ 1.0.316 }}
+          path: TestResults-${{ 1.0.316 }}
         if: ${{ always() }}
 
       - name: Publish artifacts
         run: |
           dotnet publish -c Release \
-          /p:Version=${{ needs.setup.outputs.gitversion_semver }} \
+          /p:Version=${{ 1.0.316 }} \
           /p:AssemblyVersion=${{ needs.setup.outputs.gitversion_assemblySemver }} \
           /p:InformationalVersion=${{ needs.setup.outputs.gitversion_informationalversion }} \
           managed/CounterStrikeSharp.API
           
           dotnet pack -c Release \
-          /p:Version=${{ needs.setup.outputs.gitversion_semver }} \
+          /p:Version=${{ 1.0.316 }} \
           /p:AssemblyVersion=${{ needs.setup.outputs.gitversion_assemblySemver }} \
           /p:InformationalVersion=${{ needs.setup.outputs.gitversion_informationalversion }} \
           managed/CounterStrikeSharp.API
 
       - uses: actions/upload-artifact@v4
         with:
-          name: counterstrikesharp-api-${{ needs.setup.outputs.gitversion_semver }}
+          name: counterstrikesharp-api-${{ 1.0.316 }}
           path: managed/CounterStrikeSharp.API/bin/Release
 
   publish:
@@ -189,17 +189,17 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: counterstrikesharp-windows-${{ needs.setup.outputs.gitversion_semver }}
+          name: counterstrikesharp-windows-${{ 1.0.316 }}
           path: build/windows
 
       - uses: actions/download-artifact@v4
         with:
-          name: counterstrikesharp-linux-${{ needs.setup.outputs.gitversion_semver }}
+          name: counterstrikesharp-linux-${{ 1.0.316 }}
           path: build/linux
 
       - uses: actions/download-artifact@v4
         with:
-          name: counterstrikesharp-api-${{ needs.setup.outputs.gitversion_semver }}
+          name: counterstrikesharp-api-${{ 1.0.316 }}
           path: build/api
 
       # TODO: This stuff should really be in a matrix
@@ -212,8 +212,8 @@ jobs:
 
       - name: Zip Builds
         run: |
-          (cd build/linux && zip -qq -r ../../counterstrikesharp-linux-${{ needs.setup.outputs.gitversion_semver }}.zip *)
-          (cd build/windows && zip -qq -r ../../counterstrikesharp-windows-${{ needs.setup.outputs.gitversion_semver }}.zip *)
+          (cd build/linux && zip -qq -r ../../counterstrikesharp-linux-${{ 1.0.316 }}.zip *)
+          (cd build/windows && zip -qq -r ../../counterstrikesharp-windows-${{ 1.0.316 }}.zip *)
 
       - name: Add dotnet runtime
         run: |
@@ -227,8 +227,8 @@ jobs:
 
       - name: Zip Builds
         run: |
-          (cd build/linux && zip -qq -r ../../counterstrikesharp-with-runtime-linux-${{ needs.setup.outputs.gitversion_semver }}.zip *)
-          (cd build/windows && zip -qq -r ../../counterstrikesharp-with-runtime-windows-${{ needs.setup.outputs.gitversion_semver }}.zip *)
+          (cd build/linux && zip -qq -r ../../counterstrikesharp-with-runtime-linux-${{ 1.0.316 }}.zip *)
+          (cd build/windows && zip -qq -r ../../counterstrikesharp-with-runtime-windows-${{ 1.0.316 }}.zip *)
       
       - name: Generate a changelog
         uses: orhun/git-cliff-action@v4
@@ -247,15 +247,15 @@ jobs:
 
             Please refer to [CHANGELOG.md](https://github.com/roflmuffin/CounterStrikeSharp/blob/${{ github.ref_name }}/CHANGELOG.md) for details.
           files: |
-            counterstrikesharp-windows-${{ needs.setup.outputs.gitversion_semver }}.zip
-            counterstrikesharp-with-runtime-windows-${{ needs.setup.outputs.gitversion_semver }}.zip
-            counterstrikesharp-linux-${{ needs.setup.outputs.gitversion_semver }}.zip
-            counterstrikesharp-with-runtime-linux-${{ needs.setup.outputs.gitversion_semver }}.zip
+            counterstrikesharp-windows-${{ 1.0.316 }}.zip
+            counterstrikesharp-with-runtime-windows-${{ 1.0.316 }}.zip
+            counterstrikesharp-linux-${{ 1.0.316 }}.zip
+            counterstrikesharp-with-runtime-linux-${{ 1.0.316 }}.zip
 
       - name: Publish NuGet package
         run: |
-          dotnet nuget push build/api/CounterStrikeSharp.API.${{ needs.setup.outputs.gitversion_semver }}.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
-          dotnet nuget push build/api/CounterStrikeSharp.API.${{ needs.setup.outputs.gitversion_semver }}.snupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push build/api/CounterStrikeSharp.API.${{ 1.0.316 }}.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push build/api/CounterStrikeSharp.API.${{ 1.0.316 }}.snupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Send Notification to Discord
         env:
@@ -263,7 +263,7 @@ jobs:
         uses: Ilshidur/action-discord@0.3.2
         with:
           args: |
-            A new release of CS# has been tagged [v${{ needs.setup.outputs.gitversion_semver }}](${{ steps.release.outputs.url }})
+            A new release of CS# has been tagged [v${{ 1.0.316 }}](${{ steps.release.outputs.url }})
 
             ${{ steps.git-cliff.outputs.content }}
 
