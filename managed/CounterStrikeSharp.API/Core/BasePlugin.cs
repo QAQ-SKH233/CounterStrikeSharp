@@ -268,68 +268,42 @@ namespace CounterStrikeSharp.API.Core
         /// RegisterListener&lt;Listeners.OnTick&gt;(OnTick);
         /// </code>
         /// </example>
-public void RegisterListener<T>(T handler) where T : Delegate
-{
-    var listenerName = typeof(T).GetCustomAttribute<ListenerNameAttribute>()?.Name;
-    if (string.IsNullOrEmpty(listenerName))
-    {
-        throw new ArgumentException("Listener of type T is invalid and does not have a name attribute",
-            nameof(T));
-    }
-
-    var parameterTypes = typeof(T).GetMethod("Invoke").GetParameters().Select(p => p.ParameterType).ToArray();
-    var castedParameterTypes = typeof(T).GetMethod("Invoke").GetParameters()
-        .Select(p => p.GetCustomAttribute<CastFromAttribute>()?.Type)
-        .ToArray();
-
-    Application.Instance.Logger.LogDebug("Registering listener for {ListenerName} with {ParameterCount} parameters",
-        listenerName, parameterTypes.Length);
-
-    // 修改开始：添加性能监控逻辑
-    var wrappedHandler = new Action<ScriptContext>(context =>
-    {
-        // 记录执行开始时间
-        var startTime = DateTime.UtcNow;
-        long elapsedMilliseconds = 0;
-        var pluginName = ModuleName; // 获取当前插件名称
-        var methodName = $"{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}"; // 获取完整方法名
-        
-        try
+        public void RegisterListener<T>(T handler) where T : Delegate
         {
-            var args = new object[parameterTypes.Length];
-            for (int i = 0; i < parameterTypes.Length; i++)
+            var listenerName = typeof(T).GetCustomAttribute<ListenerNameAttribute>()?.Name;
+            if (string.IsNullOrEmpty(listenerName))
             {
-                args[i] = context.GetArgument(castedParameterTypes[i] ?? parameterTypes[i], i);
-                if (castedParameterTypes[i] != null)
-                    args[i] = Activator.CreateInstance(parameterTypes[i], new[] { args[i] });
+                throw new ArgumentException("Listener of type T is invalid and does not have a name attribute",
+                    nameof(T));
             }
 
-            handler.DynamicInvoke(args);
-        }
-        finally
-        {
-            // 计算执行耗时
-            elapsedMilliseconds = (long)(DateTime.UtcNow - startTime).TotalMilliseconds;
-            
-            // 直接将性能日志输出到控制台
-            if (elapsedMilliseconds > 5)
+            var parameterTypes = typeof(T).GetMethod("Invoke").GetParameters().Select(p => p.ParameterType).ToArray();
+            var castedParameterTypes = typeof(T).GetMethod("Invoke").GetParameters()
+                .Select(p => p.GetCustomAttribute<CastFromAttribute>()?.Type)
+                .ToArray();
+
+            Application.Instance.Logger.LogDebug("Registering listener for {ListenerName} with {ParameterCount} parameters",
+                listenerName, parameterTypes.Length);
+
+            var wrappedHandler = new Action<ScriptContext>(context =>
             {
-                Console.WriteLine($"[PERF WARNING] Listener exceeded 5ms threshold - " +
-                                 $"Plugin: {pluginName}, " +
-                                 $"Listener: {listenerName}, " +
-                                 $"Method: {methodName}, " +
-                                 $"Duration: {elapsedMilliseconds}ms");
-            }
+                var args = new object[parameterTypes.Length];
+                for (int i = 0; i < parameterTypes.Length; i++)
+                {
+                    args[i] = context.GetArgument(castedParameterTypes[i] ?? parameterTypes[i], i);
+                    if (castedParameterTypes[i] != null)
+                        args[i] = Activator.CreateInstance(parameterTypes[i], new[] { args[i] });
+                }
+
+                handler.DynamicInvoke(args);
+            });
+
+            var subscriber =
+                new CallbackSubscriber(handler, wrappedHandler, () => { RemoveListener(listenerName, handler); });
+
+            NativeAPI.AddListener(listenerName, subscriber.GetInputArgument());
+            Listeners[handler] = subscriber;
         }
-    });
-    // 修改结束
-
-    var subscriber =
-        new CallbackSubscriber(handler, wrappedHandler, () => { RemoveListener(listenerName, handler); });
-
-    NativeAPI.AddListener(listenerName, subscriber.GetInputArgument());
-    Listeners[handler] = subscriber;
-}
         /// <summary>
         /// Removes a global listener.
         /// </summary>
