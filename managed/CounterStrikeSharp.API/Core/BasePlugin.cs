@@ -289,9 +289,10 @@ public void RegisterListener<T>(T handler) where T : Delegate
     var wrappedHandler = new Action<ScriptContext>(context =>
     {
         // 记录执行开始时间
-        long startTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var startTime = DateTime.UtcNow;
         long elapsedMilliseconds = 0;
         var pluginName = ModuleName; // 获取当前插件名称
+        var methodName = $"{handler.Method.DeclaringType?.FullName}.{handler.Method.Name}"; // 获取完整方法名
         
         try
         {
@@ -308,11 +309,17 @@ public void RegisterListener<T>(T handler) where T : Delegate
         finally
         {
             // 计算执行耗时
-            elapsedMilliseconds = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startTime;
+            elapsedMilliseconds = (long)(DateTime.UtcNow - startTime).TotalMilliseconds;
             
-            // 记录执行时间和插件信息
-            string listenerInfo = $"{handler.Method.DeclaringType?.Name}.{handler.Method.Name}";
-            LogPerformanceMetrics(pluginName, listenerName, listenerInfo, elapsedMilliseconds);
+            // 直接将性能日志输出到控制台
+            if (elapsedMilliseconds > 20)
+            {
+                Console.WriteLine($"[PERF] Listener exceeded threshold - Plugin: {pluginName}, Listener: {listenerName}, Method: {methodName}, Duration: {elapsedMilliseconds}ms");
+            }
+            else if (Debugger.IsAttached) // 调试模式下输出所有监听器执行时间
+            {
+                Console.WriteLine($"[PERF] Listener executed - Plugin: {pluginName}, Listener: {listenerName}, Method: {methodName}, Duration: {elapsedMilliseconds}ms");
+            }
         }
     });
     // 修改结束
@@ -323,33 +330,6 @@ public void RegisterListener<T>(T handler) where T : Delegate
     NativeAPI.AddListener(listenerName, subscriber.GetInputArgument());
     Listeners[handler] = subscriber;
 }
-
-// 新增方法：记录性能指标
-private void LogPerformanceMetrics(string pluginName, string listenerName, string listenerInfo, long elapsedMs)
-{
-    // 设置阈值，只记录超过20ms的执行
-    long thresholdMs = 20; 
-    
-    if (elapsedMs >= thresholdMs)
-    {
-        Logger.LogWarning(
-            "[Performance] Listener execution time exceeded threshold - " +
-            "Plugin: {PluginName}, Listener: {ListenerName}, " +
-            "Method: {ListenerInfo}, Duration: {ElapsedMs}ms",
-            pluginName, listenerName, listenerInfo, elapsedMs
-        );
-    }
-    else if (Logger.IsEnabled(LogLevel.Debug))
-    {
-        Logger.LogDebug(
-            "[Performance] Listener executed - " +
-            "Plugin: {PluginName}, Listener: {ListenerName}, " +
-            "Method: {ListenerInfo}, Duration: {ElapsedMs}ms",
-            pluginName, listenerName, listenerInfo, elapsedMs
-        );
-    }
-}
-
 
         /// <summary>
         /// Removes a global listener.
