@@ -135,15 +135,41 @@ namespace CounterStrikeSharp.API.Core
         
         public delegate HookResult GameEventHandler<T>(T @event, GameEventInfo info) where T : GameEvent;
 
-        private void RegisterEventHandlerInternal<T>(string name, GameEventHandler<T> handler, bool post)
-            where T : GameEvent
+private void RegisterEventHandlerInternal<T>(string name, GameEventHandler<T> handler, bool post)
+    where T : GameEvent
+{
+    // == 新增性能监测逻辑 ==
+    // 创建包裹原有handler的计时器包装
+    GameEventHandler<T> wrappedHandler = (@event, info) =>
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
         {
-            var subscriber = new CallbackSubscriber(handler, handler,
-                () => DeregisterEventHandler(name, handler, post));
-
-            NativeAPI.HookEvent(name, subscriber.GetInputArgument(), post);
-            Handlers[handler] = subscriber;
+            // 调用原始事件处理程序
+            return handler(@event, info);
         }
+        finally
+        {
+            sw.Stop();
+            // 获取精确到毫秒的执行时间
+            var elapsed = sw.Elapsed.TotalMilliseconds;
+            
+            // 超过5ms时输出警告
+            if (elapsed > 1)
+            {
+                Console.WriteLine(
+                    $"[PERFORMANCE WARNING] Event '{name}' in plugin '{ModuleName}' took {elapsed:F2}ms");
+            }
+        }
+    };
+    // == 结束新增代码 ==
+
+    var subscriber = new CallbackSubscriber(handler, wrappedHandler,
+        () => DeregisterEventHandler(name, handler, post));
+
+    NativeAPI.HookEvent(name, subscriber.GetInputArgument(), post);
+    Handlers[handler] = subscriber;
+}
 
         /// <summary>
         /// Registers a game event handler.
@@ -308,9 +334,12 @@ namespace CounterStrikeSharp.API.Core
             var elapsed = sw.Elapsed.TotalMilliseconds;
             
             // 超过5ms时输出警告
-                Console.WriteLine(
+            if (elapsed > 1)
+            {
+
+                   Console.WriteLine(
                     $"[PERFORMANCE WARNING] Listener '{listenerName}' in plugin '{ModuleName}' took {elapsed:F2}ms");
-            
+            }
             
         }
     });
