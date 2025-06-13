@@ -295,7 +295,7 @@ namespace CounterStrikeSharp.API.Core
                 args[i] = Activator.CreateInstance(parameterTypes[i], new[] { args[i] });
         }
 
-        // 开始计时
+        // 使用高精度计时器
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
@@ -304,14 +304,12 @@ namespace CounterStrikeSharp.API.Core
         finally
         {
             sw.Stop();
-            var elapsedMs = sw.TotalMilliseconds;
+            // 使用TotalMilliseconds获取精确到毫秒的执行时间
+            var elapsed = sw.Elapsed.TotalMilliseconds;
             
             // 超过5ms时输出警告
-            if (elapsedMs > 0.05)
-            {
-                Console.WriteLine(
-                    $"[PERFORMANCE WARNING] Listener '{listenerName}' in plugin '{ModuleName}' took {elapsedMs}ms");
-            }
+            Console.WriteLine($"[PERFORMANCE WARNING] Listener '{listenerName}' in plugin '{ModuleName}' took {elapsed:F2}ms");
+            
         }
     });
 
