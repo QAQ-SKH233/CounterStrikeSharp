@@ -312,13 +312,13 @@ public void RegisterListener<T>(T handler) where T : Delegate
             elapsedMilliseconds = (long)(DateTime.UtcNow - startTime).TotalMilliseconds;
             
             // 直接将性能日志输出到控制台
-            if (elapsedMilliseconds > 20)
+            if (elapsedMilliseconds > 5)
             {
-                Console.WriteLine($"[PERF] Listener exceeded threshold - Plugin: {pluginName}, Listener: {listenerName}, Method: {methodName}, Duration: {elapsedMilliseconds}ms");
-            }
-            else if (Debugger.IsAttached) // 调试模式下输出所有监听器执行时间
-            {
-                Console.WriteLine($"[PERF] Listener executed - Plugin: {pluginName}, Listener: {listenerName}, Method: {methodName}, Duration: {elapsedMilliseconds}ms");
+                Console.WriteLine($"[PERF WARNING] Listener exceeded 5ms threshold - " +
+                                 $"Plugin: {pluginName}, " +
+                                 $"Listener: {listenerName}, " +
+                                 $"Method: {methodName}, " +
+                                 $"Duration: {elapsedMilliseconds}ms");
             }
         }
     });
@@ -330,7 +330,6 @@ public void RegisterListener<T>(T handler) where T : Delegate
     NativeAPI.AddListener(listenerName, subscriber.GetInputArgument());
     Listeners[handler] = subscriber;
 }
-
         /// <summary>
         /// Removes a global listener.
         /// </summary>
