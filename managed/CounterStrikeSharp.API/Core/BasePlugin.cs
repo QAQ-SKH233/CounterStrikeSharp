@@ -304,7 +304,7 @@ namespace CounterStrikeSharp.API.Core
         finally
         {
             sw.Stop();
-            var elapsedMs = sw.ElapsedMilliseconds;
+            var elapsedMs = sw.TotalMilliseconds;
             
             // 超过5ms时输出警告
             if (elapsedMs > 0.05)
