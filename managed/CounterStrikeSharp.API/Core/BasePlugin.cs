@@ -268,42 +268,88 @@ namespace CounterStrikeSharp.API.Core
         /// RegisterListener&lt;Listeners.OnTick&gt;(OnTick);
         /// </code>
         /// </example>
-        public void RegisterListener<T>(T handler) where T : Delegate
+public void RegisterListener<T>(T handler) where T : Delegate
+{
+    var listenerName = typeof(T).GetCustomAttribute<ListenerNameAttribute>()?.Name;
+    if (string.IsNullOrEmpty(listenerName))
+    {
+        throw new ArgumentException("Listener of type T is invalid and does not have a name attribute",
+            nameof(T));
+    }
+
+    var parameterTypes = typeof(T).GetMethod("Invoke").GetParameters().Select(p => p.ParameterType).ToArray();
+    var castedParameterTypes = typeof(T).GetMethod("Invoke").GetParameters()
+        .Select(p => p.GetCustomAttribute<CastFromAttribute>()?.Type)
+        .ToArray();
+
+    Application.Instance.Logger.LogDebug("Registering listener for {ListenerName} with {ParameterCount} parameters",
+        listenerName, parameterTypes.Length);
+
+    // 修改开始：添加性能监控逻辑
+    var wrappedHandler = new Action<ScriptContext>(context =>
+    {
+        // 记录执行开始时间
+        long startTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        long elapsedMilliseconds = 0;
+        var pluginName = ModuleName; // 获取当前插件名称
+        
+        try
         {
-            var listenerName = typeof(T).GetCustomAttribute<ListenerNameAttribute>()?.Name;
-            if (string.IsNullOrEmpty(listenerName))
+            var args = new object[parameterTypes.Length];
+            for (int i = 0; i < parameterTypes.Length; i++)
             {
-                throw new ArgumentException("Listener of type T is invalid and does not have a name attribute",
-                    nameof(T));
+                args[i] = context.GetArgument(castedParameterTypes[i] ?? parameterTypes[i], i);
+                if (castedParameterTypes[i] != null)
+                    args[i] = Activator.CreateInstance(parameterTypes[i], new[] { args[i] });
             }
 
-            var parameterTypes = typeof(T).GetMethod("Invoke").GetParameters().Select(p => p.ParameterType).ToArray();
-            var castedParameterTypes = typeof(T).GetMethod("Invoke").GetParameters()
-                .Select(p => p.GetCustomAttribute<CastFromAttribute>()?.Type)
-                .ToArray();
-
-            Application.Instance.Logger.LogDebug("Registering listener for {ListenerName} with {ParameterCount} parameters",
-                listenerName, parameterTypes.Length);
-
-            var wrappedHandler = new Action<ScriptContext>(context =>
-            {
-                var args = new object[parameterTypes.Length];
-                for (int i = 0; i < parameterTypes.Length; i++)
-                {
-                    args[i] = context.GetArgument(castedParameterTypes[i] ?? parameterTypes[i], i);
-                    if (castedParameterTypes[i] != null)
-                        args[i] = Activator.CreateInstance(parameterTypes[i], new[] { args[i] });
-                }
-
-                handler.DynamicInvoke(args);
-            });
-
-            var subscriber =
-                new CallbackSubscriber(handler, wrappedHandler, () => { RemoveListener(listenerName, handler); });
-
-            NativeAPI.AddListener(listenerName, subscriber.GetInputArgument());
-            Listeners[handler] = subscriber;
+            handler.DynamicInvoke(args);
         }
+        finally
+        {
+            // 计算执行耗时
+            elapsedMilliseconds = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startTime;
+            
+            // 记录执行时间和插件信息
+            string listenerInfo = $"{handler.Method.DeclaringType?.Name}.{handler.Method.Name}";
+            LogPerformanceMetrics(pluginName, listenerName, listenerInfo, elapsedMilliseconds);
+        }
+    });
+    // 修改结束
+
+    var subscriber =
+        new CallbackSubscriber(handler, wrappedHandler, () => { RemoveListener(listenerName, handler); });
+
+    NativeAPI.AddListener(listenerName, subscriber.GetInputArgument());
+    Listeners[handler] = subscriber;
+}
+
+// 新增方法：记录性能指标
+private void LogPerformanceMetrics(string pluginName, string listenerName, string listenerInfo, long elapsedMs)
+{
+    // 设置阈值，只记录超过20ms的执行
+    long thresholdMs = 20; 
+    
+    if (elapsedMs >= thresholdMs)
+    {
+        Logger.LogWarning(
+            "[Performance] Listener execution time exceeded threshold - " +
+            "Plugin: {PluginName}, Listener: {ListenerName}, " +
+            "Method: {ListenerInfo}, Duration: {ElapsedMs}ms",
+            pluginName, listenerName, listenerInfo, elapsedMs
+        );
+    }
+    else if (Logger.IsEnabled(LogLevel.Debug))
+    {
+        Logger.LogDebug(
+            "[Performance] Listener executed - " +
+            "Plugin: {PluginName}, Listener: {ListenerName}, " +
+            "Method: {ListenerInfo}, Duration: {ElapsedMs}ms",
+            pluginName, listenerName, listenerInfo, elapsedMs
+        );
+    }
+}
+
 
         /// <summary>
         /// Removes a global listener.
