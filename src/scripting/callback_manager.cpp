@@ -17,6 +17,8 @@
 #include "scripting/callback_manager.h"
 
 #include <algorithm>
+#include <chrono>
+#include <iostream> // 包含iostream用于std::cout
 
 #include "core/log.h"
 #include "vprof.h"
@@ -51,7 +53,24 @@ void ScriptCallback::Execute(bool bResetContext)
     {
         if (fnMethodToCall)
         {
+            // 记录开始时间
+            auto start = std::chrono::high_resolution_clock::now();
+            
+            // 执行回调函数
             fnMethodToCall(&ScriptContextStruct());
+            
+            // 记录结束时间并计算持续时间
+            auto end = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+            
+            // 将微秒转换为毫秒
+            double durationMs = duration.count() / 1000.0;
+            
+            // 如果执行时间超过5ms，输出到控制台
+            if (durationMs > 5) {
+                std::cout << "[WARNING] Callback '" << m_name 
+                          << "' exceeded time limit: " << durationMs << " ms" << std::endl;
+            }
         }
     }
 
