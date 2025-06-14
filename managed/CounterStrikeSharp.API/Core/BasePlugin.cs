@@ -395,31 +395,35 @@ private void RegisterEventHandlerInternal<T>(string name, GameEventHandler<T> ha
         /// <param name="callback">Code to run when timer elapses</param>
         /// <param name="flags">Controls if the timer is a one-off, repeat or stops on map change etc.</param>
         /// <returns>An instance of the <see cref="Timer"/></returns>
-        public Timer AddTimer(float interval, Action callback, TimerFlags? flags = null)
+public Timer AddTimer(float interval, Action callback, TimerFlags? flags = null)
+{
+    // == 新增性能监测逻辑 ==
+    // 创建包裹原有callback的计时器包装
+    Action wrappedCallback = () =>
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
         {
-            Action wrappedCallback = () =>
-                {
-                    var sw = System.Diagnostics.Stopwatch.StartNew();
-                    try
-                {
-                    callback();
-                }
-            finally
-            {
-                sw.Stop();
-                var elapsed = sw.Elapsed.TotalMilliseconds;
-            
-                if (elapsed > 5)
-                {
-                    Console.WriteLine(
-                        $"[PERFORMANCE WARNING] Timer callback in plugin '{ModuleName}' took {elapsed:F2}ms");
-                }
-            }
-            };
-            var timer = new Timer(interval, callback, flags ?? 0);
-            Timers.Add(timer);
-            return timer;
+            callback();
         }
+        finally
+        {
+            sw.Stop();
+            var elapsed = sw.Elapsed.TotalMilliseconds;
+            
+            if (elapsed > 1)
+            {
+                Console.WriteLine(
+                    $"[PERFORMANCE Timer WARNING] Timer callback in plugin '{ModuleName}' took {elapsed:F2}ms");
+            }
+        }
+    };
+    // == 结束新增代码 ==
+
+    var timer = new Timer(interval, wrappedCallback, flags ?? 0);
+    Timers.Add(timer);
+    return timer;
+}
 
         /// <summary>
         /// Registers all attribute handlers on the given instance.
