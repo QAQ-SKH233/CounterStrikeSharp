@@ -397,6 +397,25 @@ private void RegisterEventHandlerInternal<T>(string name, GameEventHandler<T> ha
         /// <returns>An instance of the <see cref="Timer"/></returns>
         public Timer AddTimer(float interval, Action callback, TimerFlags? flags = null)
         {
+            Action wrappedCallback = () =>
+                {
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    try
+                {
+                    callback();
+                }
+            finally
+            {
+                sw.Stop();
+                var elapsed = sw.Elapsed.TotalMilliseconds;
+            
+                if (elapsed > 5)
+                {
+                    Console.WriteLine(
+                        $"[PERFORMANCE WARNING] Timer callback in plugin '{ModuleName}' took {elapsed:F2}ms");
+                }
+            }
+            };
             var timer = new Timer(interval, callback, flags ?? 0);
             Timers.Add(timer);
             return timer;
