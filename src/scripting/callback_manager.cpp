@@ -23,6 +23,33 @@
 #include "core/log.h"
 #include "vprof.h"
 
+DLL_EXPORT void RegisterCallbackTrace(const char* name, size_t count, const char* profile, const char* callerStack)
+{
+    // Dummy logic to prevent compiler from optimizing this function away
+    volatile size_t hash = 5381;
+
+    if (name)
+    {
+        for (const char* c = name; *c; ++c)
+            hash = ((hash << 5) + hash) + *c;
+    }
+
+    if (profile)
+    {
+        for (const char* c = profile; *c; ++c)
+            hash = ((hash << 5) + hash) + *c;
+    }
+
+    if (callerStack)
+    {
+        for (int i = 0; callerStack[i] && i < 128; ++i)
+            hash ^= callerStack[i];
+    }
+
+    hash ^= count;
+    (void)hash;
+}
+
 namespace counterstrikesharp {
 
 ScriptCallback::ScriptCallback(const char* szName) : m_root_context(fxNativeContext{})
@@ -38,38 +65,58 @@ void ScriptCallback::AddListener(CallbackT fnPluginFunction) { m_functions.push_
 
 bool ScriptCallback::RemoveListener(CallbackT fnPluginFunction)
 {
-    bool bSuccess = true;
+    size_t nOriginalSize = m_functions.size();
+    m_functions.erase(std::ranges::remove(m_functions, fnPluginFunction).begin(), m_functions.end());
+    return m_functions.size() != nOriginalSize;
+}
 
-    m_functions.erase(std::remove(m_functions.begin(), m_functions.end(), fnPluginFunction), m_functions.end());
-
-    return bSuccess;
+bool ScriptCallback::IsContextSafe()
+{
+    try
+    {
+        auto& Ctx = ScriptContext();
+        Ctx.GetResult<void*>();
+        return true;
+    }
+    catch (...)
+    {
+        CSSHARP_CORE_WARN("Context is invalid (exception during access)");
+        return false;
+    }
 }
 
 void ScriptCallback::Execute(bool bResetContext)
 {
+    if (!IsContextSafe())
+    {
+        ScriptContext().ThrowNativeError("ScriptCallback::Execute aborted due to invalid context");
+        CSSHARP_CORE_WARN("ScriptCallback::Execute aborted due to invalid context (callback: '{}')", m_name);
+        return;
+    }
+
     VPROF_BUDGET(m_profile_name.c_str(), "CS# Script Callbacks");
 
-    for (auto fnMethodToCall : m_functions)
+    for (size_t nI = 0; nI < m_functions.size(); ++nI)
     {
         if (fnMethodToCall)
         {
             // 记录开始时间
             auto start = std::chrono::high_resolution_clock::now();
-            
+
             // 执行回调函数
             fnMethodToCall(&ScriptContextStruct());
-            
+
             // 记录结束时间并计算持续时间
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-            
+
             // 将微秒转换为毫秒
             double durationMs = duration.count() / 1000.0;
-            
+
             // 如果执行时间超过5ms，输出到控制台
-            if (durationMs > 5) {
-                std::cout << "[WARNING] Callback '" << m_name 
-                          << "' exceeded time limit: " << durationMs << " ms" << std::endl;
+            if (durationMs > 5)
+            {
+                std::cout << "[WARNING] Callback '" << m_name << "' exceeded time limit: " << durationMs << " ms" << std::endl;
             }
         }
     }
@@ -108,9 +155,9 @@ ScriptCallback* CallbackManager::FindCallback(const char* szName)
 
 void CallbackManager::ReleaseCallback(ScriptCallback* pCallback)
 {
-    auto I = std::remove_if(m_managed.begin(), m_managed.end(), [pCallback](ScriptCallback* pI) {
+    auto I = std::ranges::remove_if(m_managed, [pCallback](const ScriptCallback* pI) {
         return pCallback == pI;
-    });
+    }).begin();
 
     if (I != m_managed.end()) m_managed.erase(I, m_managed.end());
     delete pCallback;
@@ -118,8 +165,7 @@ void CallbackManager::ReleaseCallback(ScriptCallback* pCallback)
 
 bool CallbackManager::TryAddFunction(const char* szName, CallbackT fnCallable)
 {
-    auto* pCallback = FindCallback(szName);
-    if (pCallback)
+    if (auto* pCallback = FindCallback(szName))
     {
         pCallback->AddListener(fnCallable);
         return true;
@@ -130,8 +176,7 @@ bool CallbackManager::TryAddFunction(const char* szName, CallbackT fnCallable)
 
 bool CallbackManager::TryRemoveFunction(const char* szName, CallbackT fnCallable)
 {
-    auto* pCallback = FindCallback(szName);
-    if (pCallback)
+    if (auto* pCallback = FindCallback(szName))
     {
         return pCallback->RemoveListener(fnCallable);
     }
